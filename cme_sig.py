@@ -49,7 +49,7 @@
 # 
 # 
 
-# In[ ]:
+# In[1]:
 
 
 from scipy import stats
@@ -106,7 +106,7 @@ if os.path.isdir(datadir) == False: os.mkdir(datadir)
 plt.rcParams["figure.figsize"] = (15,8)
 
 
-# ## 1 Settings and load data
+# # **1) Settings and load data**
 
 # In[2]:
 
@@ -245,28 +245,11 @@ ulyi=np.where(ic.sc_insitu == 'ULYSSES')[:][0]
 ic
 
 
-# ### Functions
+# ## Define Functions
 
 # In[4]:
 
 
-def measure(obj, sat, t0, t1, frame="HEEQ", bframe="HEEQ", satparams=None):
-    if satparams:
-        inst = getattr(heliosat, sat)(satparams)
-    else:
-        inst = getattr(heliosat, sat)()
-
-    t_s = [datetime.datetime.fromtimestamp(_) for _ in np.array(list(range(int(t0.timestamp()), int(t1.timestamp()))))]
-    o_s = inst.trajectory(t_s, frame=frame)
-
-    if satparams:
-        b = heliosat.spice.transform_frame([satparams] * len(t_s), np.array(obj.sim_fields(t_s, o_s))[:, 0, :], frame, bframe)
-    else:
-        b = heliosat.spice.transform_frame(t_s, np.array(obj.sim_fields(t_s, o_s))[:, 0, :], frame, bframe)
-
-    b[b == 0] = np.nan
-
-    return t_s, np.sqrt(np.sum(b**2, axis=1)), b
 
 def plot_configure(ax, **kwargs):
     view_azim = kwargs.pop("view_azim", -25)
@@ -329,25 +312,45 @@ def plot_traj(ax, sat, t_snap, frame="HEEQ", traj_pos=True, traj_major=4, traj_m
         
         ax.plot(*traj.T, ls=_ls, lw=_lw, **kwargs)
 
+        
+def plot_circle(ax,dist,**kwargs):        
 
-# ## 2 3DCORE modeling
+    thetac = np.linspace(0, 2 * np.pi, 100)
+    xc=dist*np.sin(thetac)
+    yc=dist*np.cos(thetac)
+    zc=0
+    ax.plot(xc,yc,zc,ls='--',color='black',lw=0.3,**kwargs)
 
-# ### Model Settings
+   
+   
 
-# In[13]:
+def plot_satellite(ax,satpos1,**kwargs):
+
+    xc=satpos1[0]*np.cos(np.radians(satpos1[2]))
+    yc=satpos1[0]*np.sin(np.radians(satpos1[2]))
+    zc=0
+    #print(xc,yc,zc)
+    ax.scatter3D(xc,yc,zc,**kwargs)
+
+
+# # **2) 3DCORE modeling**
+
+# ## Model Settings
+
+# In[132]:
 
 
 t_launch = datetime.datetime(2020, 1, 1, 0)
 
 iparams_arr = np.array([[
     0,      # time offset
-    145,    # l_1 (logitude)
-    2.5,    # l_2 (latitude)
+    0,    # l_1 (logitude) HEEQ
+    0,    # l_2 (latitude)
     0,      # o (inclination, orientation)
     0.24,   # d_1au (frontal width at 1AU)
-    5,   # delta (cross-section aspect ratio)
+    3,   # delta (cross-section aspect ratio)
     5,      # r_0 (initialization distance in solar radii)
-    400,    # v_0 (initial velocty in)
+    600,    # v_0 (initial velocty in)
     -5,      # tau (magnetic field twist)
     1,      # b_s (magnetic field scaling parameter)
     12,     # b_1au (magnetic field strength at 1au)
@@ -361,7 +364,8 @@ model_obj.update_iparams(iparams_arr, seed=42)
 
 
 #measurement times 
-tm1 =  t_launch + datetime.timedelta(days=4)
+tm0 =  t_launch + datetime.timedelta(days=1)
+tm1 =  t_launch + datetime.timedelta(days=3.5)
 
 
 #colors for 3dplots
@@ -375,15 +379,35 @@ cbx = "xkcd:magenta"
 cby = "xkcd:orange"
 cbz = "xkcd:azure"
 
-#t1, btot1, bxyz1 = measure(model_obj, "Earth", tm1 - datetime.timedelta(days=2), tm1  + datetime.timedelta(days=2), frame="HEEQ", bframe="SPP_RTN")
-#print(t1)
-#print(btot1)
-#print(bxyz1)
 
 
-# ### **Figure 1** model setup
+############# define synthetic satellite positions - semi-circle at 1 AU, from -90 to +90 longitude
 
-# In[14]:
+lonstart=-90
+lonstep=5
+lonend=90
+
+lonend=lonend+lonstep
+satpos=np.zeros(len(np.arange(lonstart,lonend,lonstep)),dtype=[('r',float),('lat', float),('lon', float)])
+#convert to recarray
+satpos = satpos.view(np.recarray)  
+
+##### set position
+satpos.r=1.0
+satpos.lat=0.0
+satpos.lon=np.arange(lonstart,lonend,lonstep)
+                
+print(satpos.r, satpos.lon)    
+
+
+#another satpos definition for a semi circle at 0.5 AU
+satpos2=satpos
+satpos2.r=0.5
+
+
+# ## Figure 1 model setup Nr.1 for illustration
+
+# In[134]:
 
 
 #use either 
@@ -402,205 +426,148 @@ fsize=15
 
 fig=plt.figure(1,figsize=(12,9),dpi=100)
 
-
 ax = fig.add_subplot(111, projection='3d')
 
+plot_configure(ax, view_azim=-50, view_elev=40, view_radius=0.6)
+#in other planes
+#plot_configure(ax, view_azim=0, view_elev=90, view_radius=0.6)
+#plot_configure(ax, view_azim=0, view_elev=0, view_radius=0.6)
 
-plot_configure(ax, view_azim=80, view_elev=40, view_radius=0.5)
+
+########## 3dcore plots
+
+plot_3dcore(ax, model_obj, tm0, color=c1)
+plot_3dcore_field(ax, model_obj, color=c1, steps=1500, step_size=0.001, lw=1.1, ls="-")
+plot_3dcore_field(ax, model_obj, color=c1, steps=1500, step_size=0.001, lw=1.1, ls="-" )
+
+plot_3dcore(ax, model_obj, tm1, color=c2)
+plot_3dcore_field(ax, model_obj, color=c2, steps=500, step_size=0.01, lw=1.1, ls="-")
+
+############# satellite plots
+#plot_traj(ax, "Earth", tm1, frame="HEEQ", color=c1)
+   
+    
+for i in np.arange(0,len(satpos)):
+    plot_satellite(ax,satpos[i],color='black',alpha=0.9)    
+    plot_satellite(ax,satpos2[i],color='red',alpha=0.9)
 
 
-plot_3dcore(ax, model_obj, t1, color=c1)
 
-plot_3dcore_field(ax, model_obj, color=c1, steps=500, step_size=0.01, lw=1.5, ls=":")
-#plot_3dcore_field(ax, model_obj, color=c2, steps=500, step_size=0.005, lw=1.5, ls=":")
-#plot_traj(ax, "PSP", TP_A, frame="ECLIPJ2000", color=C_A)
+##########cosmetics
+
+#approximate Sun Earth line
+ax.plot([0,1],[0,0],[0,0],ls='-',color='black',lw=0.3)
+
+plot_circle(ax,0.5)
+plot_circle(ax,1.0)
 
 #plot_traj(ax, "PSP", TP_B, frame="ECLIPJ2000", color=C_B,lw=1.5)
 #plot_traj(ax, "PSP", TP_B, frame="ECLIPJ2000", color="k", traj_pos=False, traj_major=None, traj_minor=144,lw=1.5)
 
 plt.tight_layout()
-
 
 plt.savefig('plots/fig1_setup.pdf', dpi=300)
 plt.savefig('plots/fig1_setup.png', dpi=300)
 
 
-# In[51]:
+# ## Figure 2: Measure components for simple case
+
+# In[93]:
 
 
+def measure(obj, satpos, t0, t1, frame="HEEQ", bframe="HEEQ", satparams=None):
+    
+    #print(obj)
+    print('input')
+    print(t0,' / ', t1, frame, bframe)
+    
+    #if satparams:
+    #    inst = getattr(heliosat, sat)(satparams)
+    #else:
+    #    inst = getattr(heliosat, sat)()        
+    #print(inst)    
+    #time resolution in seconds
+    #t_s = [datetime.datetime.fromtimestamp(_) for _ in np.array(list(range(int(t0.timestamp()), int(t1.timestamp()))))]    
+    #position of spacecraft
+    #o_s = inst.trajectory(t_s, frame=frame)
+    
+    #time resolution in hours
+    res_in_days=1/24.    
+    t_s = []
+    while t0 < t1:
+        t_s.append(t0)
+        t0 += timedelta(days=res_in_days)
+
+    print('data points',len(t_s))
+    
+    #generate position from satpos - always constant
+    o_s=np.zeros([len(t_s),3])
+    o_s[:,0]=1.2
+    
+    
+    
+    #print(t_s)
+    #print(o_s)
+
+    #if satparams:
+    #    b = heliosat.spice.transform_frame([satparams] * len(t_s), np.array(obj.sim_fields(t_s, o_s))[:, 0, :], frame, bframe)
+    #else:
+    b = heliosat.spice.transform_frame(t_s, np.array(obj.sim_fields(t_s, o_s))[:, 0, :], frame, bframe)
+
+    b[b == 0] = np.nan
+
+    return t_s, np.sqrt(np.sum(b**2, axis=1)), b, o_s
 
 
+print()
+start=time.time()
 
-# In[ ]:
+t1, btot1, bxyz1, os = measure(model_obj, "Earth", tm1 - datetime.timedelta(days=1), tm1  + datetime.timedelta(days=5))
 
-
-
-
-
-# 
-# 
-# 
-# 
-# 
-
-# Here 3DCORE is used to model synthetic observations of expanding flux ropes close to the Sun
-
-# In[5]:
+print('took ', time.time()-start, '  seconds')
+print()
 
 
-
-#rc('text', usetex=True)
-#matplotlib.rcParams['text.latex.preamble'] = [r'\usepackage{amsmath}']
-
-############### Model Settings
-t_launch = datetime.datetime(2022, 6, 1, 20)
-
-iparams_arr = np.array([[
-    0,      # time offset
-    145,    # l_1 (logitude)
-    2.5,    # l_2 (latitude)
-    0,      # o (inclination, orientation)
-    0.24,   # d_1au (frontal width at 1AU)
-    1,   # delta (cross-section aspect ratio)
-    5,      # r_0 (initialization distance in solar radii)
-    400,    # v_0 (initial velocty in)
-    -5,      # tau (magnetic field twist)
-    1,      # b_s (magnetic field scaling parameter)
-    12,     # b_1au (magnetic field strength at 1au)
-    1.5,    # Gamma (solar wind drag coefficient)
-    400,    # v_sw (solar wind speed)
-    0       # sigma (measurement noise)
-]], dtype=np.float32)
-
-model_obj = py3dcore.models.ThinTorusGH3DCOREModel(t_launch, runs=1, use_gpu=False)
-model_obj.update_iparams(iparams_arr, seed=42)
-
-
-TP_A =  t_launch + datetime.timedelta(hours=4)
-TP_B =  t_launch + datetime.timedelta(hours=26)
-
-C_A = "xkcd:red"
-C_B = "xkcd:blue"
-
-C0 = "xkcd:black"
-C1 = "xkcd:magenta"
-C2 = "xkcd:orange"
-C3 = "xkcd:azure"
-
-
-
-class PSP_FIXED(heliosat.PSP):
-    def __init__(self, t_fixed, **kwargs):
-        self.t_fixed = t_fixed
-
-        super(PSP_FIXED, self).__init__(**kwargs)
-
-    def trajectory(self, t, frame, **kwargs):
-        return super().trajectory(t=[self.t_fixed] * len(t), frame=frame, **kwargs)
-
-setattr(heliosat, "PSP_FIXED", PSP_FIXED)
-
-
-# ## **Figure 2**
-# 
-
-# In[7]:
-
-
-sns.set_style('whitegrid')
-fig = plt.figure(figsize=(15, 10),dpi=50)
-
-ax = fig.add_subplot(111, projection='3d')
-
-plot_configure(ax, view_azim=125, view_elev=40, view_radius=.15)
-#plot_configure(ax, view_azim=125, view_elev=35, view_radius=.04)
-
-
-
-plot_3dcore(ax, model_obj, TP_A, color=C_A)
-plot_3dcore_field(ax, model_obj, color=C_A, steps=400, step_size=0.0005, lw=1.5, ls=":")
-#plot_traj(ax, "PSP", TP_A, frame="ECLIPJ2000", color=C_A)
-
-plot_3dcore(ax, model_obj, TP_B, color=C_B)
-plot_3dcore_field(ax, model_obj, color=C_B, steps=900, step_size=0.001, lw=1.5, ls=":")
-#plot_traj(ax, "PSP", TP_B, frame="ECLIPJ2000", color=C_B,lw=1.5)
-
-#plot_traj(ax, "PSP", TP_B, frame="ECLIPJ2000", color="k", traj_pos=False, traj_major=None, traj_minor=144,lw=1.5)
-
-t1, btot1, bxyz1 = measure(model_obj, "PSP", TP_A - datetime.timedelta(hours=6), TP_A  + datetime.timedelta(hours=6), frame="ECLIPJ2000", bframe="SPP_RTN")
-t2, btot2, bxyz2 = measure(model_obj, "PSP", TP_B - datetime.timedelta(hours=12), TP_B  + datetime.timedelta(hours=12), frame="ECLIPJ2000", bframe="SPP_RTN")
-
-
-
-plt.tight_layout()
-
-plt.savefig('plots/3dcore_1.pdf', dpi=300)
-plt.savefig('plots/3dcore_1.png', dpi=300)
-
-
-# In[8]:
-
-
-t1, btot1, bxyz1 = measure(model_obj, "PSP", TP_A - datetime.timedelta(hours=6), TP_A  + datetime.timedelta(hours=6), frame="ECLIPJ2000", bframe="SPP_RTN")
-t2, btot2, bxyz2 = measure(model_obj, "PSP", TP_B - datetime.timedelta(hours=12), TP_B  + datetime.timedelta(hours=12), frame="ECLIPJ2000", bframe="SPP_RTN")
-
-tf, btotf, bxyzf = measure(model_obj, "PSP_FIXED", TP_A - datetime.timedelta(hours=6), TP_A  + datetime.timedelta(hours=6), frame="ECLIPJ2000", bframe="SPP_RTN", satparams=TP_A)
-
-
-# In[ ]:
+# In[95]:
 
 
 sns.set_context('talk')
 sns.set_style('whitegrid')
 
-fig = plt.figure(figsize=(13, 12),dpi=70)
+fig = plt.figure(figsize=(15, 12),dpi=50)
 
-ax1 = fig.add_subplot(211)
-ax1.set_title("1st encounter (apex)")
+ax1 = fig.add_subplot(111)
+ax1.set_title('Satellite position *******')
 
-ax1.plot(t1, btot1, color=C0, label="$|B|$")
-ax1.plot(t1, bxyz1[:, 0], color=C1, label="$B_R$")
-ax1.plot(t1, bxyz1[:, 1], color=C2, label="$B_T$")
-ax1.plot(t1, bxyz1[:, 2], color=C3, label="$B_N$")
-
-ax1.plot(tf, btotf, color=C0, linestyle='--')
-ax1.plot(tf, bxyzf[:, 0], color=C1, linestyle='--')
-ax1.plot(tf, bxyzf[:, 1], color=C2, linestyle='--')
-ax1.plot(tf, bxyzf[:, 2], color=C3, linestyle='--')
+ax1.plot(t1, btot1, color=cbt, label="$|B|$")
+ax1.plot(t1, bxyz1[:, 0], color=cbx, label="$B_R$")
+ax1.plot(t1, bxyz1[:, 1], color=cby, label="$B_T$")
+ax1.plot(t1, bxyz1[:, 2], color=cbz, label="$B_N$")
 
 ax1.legend(loc="lower right", fontsize=16,ncol=4)
-ax1.xaxis.set_major_formatter(matplotlib.dates.DateFormatter('%b %d %H:%M'))
+ax1.xaxis.set_major_formatter(matplotlib.dates.DateFormatter('%b %d %H'))
 ax1.set_ylabel('B [nT]')
-plt.ylim(-1300,1300)
-plt.xlim(datetime.datetime(2022,6,1,23,0),datetime.datetime(2022,6,2,4,0))
-
-
-
-ax2 = fig.add_subplot(212)
-ax2.set_title("2nd encounter (leg)")
-
-ax2.plot(t2, btot2, color=C0, label="$|B|$")
-ax2.plot(t2, bxyz2[:, 0], color=C1, label="$B_R$")
-ax2.plot(t2, bxyz2[:, 1], color=C2, label="$B_T$")
-ax2.plot(t2, bxyz2[:, 2], color=C3, label="$B_N$")
-
-ax2.legend(loc="lower right", fontsize=16,ncol=4)
-ax2.xaxis.set_major_formatter(matplotlib.dates.DateFormatter('%b %d %H:%M'))
-ax2.set_xlabel('simulation time')
-ax2.set_ylabel('B [nT]')
-plt.ylim(-1300,1300)
-plt.xlim(datetime.datetime(2022,6,2,21,0),datetime.datetime(2022,6,3,2,0))
-
+#plt.ylim(-1300,1300)
+#plt.xlim(datetime.datetime(2022,6,1,23,0),datetime.datetime(2022,6,2,4,0))
 
 plt.tight_layout()
 
 
-plt.annotate('(a)',[0.01,0.965],xycoords='figure fraction',weight='bold')
-plt.annotate('(b)',[0.01,0.475],xycoords='figure fraction',weight='bold')
+plt.savefig('plots/fig2_measure_1.pdf', dpi=300)
+plt.savefig('plots/fig2_measure_1.png', dpi=300)
 
-plt.savefig('plots/3dcore_components_1.pdf', dpi=300)
-plt.savefig('plots/3dcore_components_1.png', dpi=300)
 
+# # **3) Parameter analysis** - vary orientation, speed, size, flattening
+# 
+
+# ### what if we vary parameters - do we find any weird signatures?
+# 
+
+# 
+
+# 
+
+# 
 
 # In[ ]:
 
@@ -669,124 +636,9 @@ plot_reconstruction(ax, model_obj, QPATH_PSP_FIXED, color="m", ls="-", lw=2)
 plt.tight_layout()
 
 
-# ### make animation
-
 # ***
 
-# # 3 Play with model settings
-
-# In[ ]:
-
-
-############### Model Settings
-t_launch = datetime.datetime(2022, 6, 1, 20)
-
-iparams_arr = np.array([[
-    0,      # time offset
-    145,    # l_1 (longitude)
-    2.5,    # l_2 (latitude)
-    5,      # o (inclination, orientation)
-    0.24,   # d_1au (frontal width at 1AU)
-    1,   # delta (cross-section aspect ratio)
-    5,      # r_0 (initialization distance in solar radii)
-    250,    # v_0 (initial velocty in)
-    -5,      # tau (magnetic field twist)
-    1,      # b_s (magnetic field scaling parameter)
-    12,     # b_1au (magnetic field strength at 1au)
-    1.5,    # Gamma (solar wind drag coefficient)
-    400,    # v_sw (solar wind speed)
-    0       # sigma (measurement noise)
-]], dtype=np.float32)
-
-model_obj = py3dcore.models.ThinTorusGH3DCOREModel(t_launch, runs=1, use_gpu=False)
-model_obj.update_iparams(iparams_arr, seed=42)
-
-
-TP_A =  t_launch + datetime.timedelta(hours=5)
-TP_B =  t_launch + datetime.timedelta(hours=24)
-
-t1, btot1, bxyz1 = measure(model_obj, "PSP", TP_A - datetime.timedelta(hours=6), TP_A  + datetime.timedelta(hours=6), frame="ECLIPJ2000", bframe="SPP_RTN")
-t2, btot2, bxyz2 = measure(model_obj, "PSP", TP_B - datetime.timedelta(hours=12), TP_B  + datetime.timedelta(hours=12), frame="ECLIPJ2000", bframe="SPP_RTN")
-tf, btotf, bxyzf = measure(model_obj, "PSP_FIXED", TP_A - datetime.timedelta(hours=6), TP_A  + datetime.timedelta(hours=6), frame="ECLIPJ2000", bframe="SPP_RTN", satparams=TP_A)
-
-
-# In[ ]:
-
-
-sns.set_style('whitegrid')
-fig = plt.figure(figsize=(15, 10),dpi=80)
-
-ax = fig.add_subplot(111, projection='3d')
-
-plot_configure(ax, view_azim=125, view_elev=40, view_radius=.15)
-#plot_configure(ax, view_azim=125, view_elev=35, view_radius=.04)
-
-plot_3dcore(ax, model_obj, TP_A, color=C_A)
-plot_3dcore_field(ax, model_obj, color=C_A, steps=300, step_size=0.0005, lw=1.5, ls=":")
-plot_traj(ax, "PSP", TP_A, frame="ECLIPJ2000", color=C_A)
-
-plot_3dcore(ax, model_obj, TP_B, color=C_B)
-plot_3dcore_field(ax, model_obj, color=C_B, steps=1500, step_size=0.0005, lw=1.5, ls=":")
-plot_traj(ax, "PSP", TP_B, frame="ECLIPJ2000", color=C_B,lw=1.5)
-
-plot_traj(ax, "PSP", TP_B, frame="ECLIPJ2000", color="k", traj_pos=False, traj_major=None, traj_minor=144,lw=1.5)
-
-plt.tight_layout()
-
-
-#########################################
-
-sns.set_context('talk')
-sns.set_style('whitegrid')
-
-fig = plt.figure(figsize=(13, 12),dpi=80)
-
-ax1 = fig.add_subplot(211)
-ax1.set_title("1st encounter (apex)")
-
-ax1.plot(t1, btot1, color=C0, label="$|B|$")
-ax1.plot(t1, bxyz1[:, 0], color=C1, label="$B_R$")
-ax1.plot(t1, bxyz1[:, 1], color=C2, label="$B_T$")
-ax1.plot(t1, bxyz1[:, 2], color=C3, label="$B_N$")
-
-ax1.plot(tf, btotf, color=C0, linestyle='--')
-ax1.plot(tf, bxyzf[:, 0], color=C1, linestyle='--')
-ax1.plot(tf, bxyzf[:, 1], color=C2, linestyle='--')
-ax1.plot(tf, bxyzf[:, 2], color=C3, linestyle='--')
-
-ax1.legend(loc="lower right", fontsize=16,ncol=4)
-ax1.xaxis.set_major_formatter(matplotlib.dates.DateFormatter('%b %d %H:%M'))
-ax1.set_ylabel('B [nT]')
-plt.ylim(-1300,1300)
-#plt.xlim(datetime.datetime(2022,6,1,22,0),datetime.datetime(2022,6,2,10,0))
-
-
-
-ax2 = fig.add_subplot(212)
-ax2.set_title("2nd encounter (leg)")
-
-ax2.plot(t2, btot2, color=C0, label="$|B|$")
-ax2.plot(t2, bxyz2[:, 0], color=C1, label="$B_R$")
-ax2.plot(t2, bxyz2[:, 1], color=C2, label="$B_T$")
-ax2.plot(t2, bxyz2[:, 2], color=C3, label="$B_N$")
-
-ax2.legend(loc="lower right", fontsize=16,ncol=4)
-ax2.xaxis.set_major_formatter(matplotlib.dates.DateFormatter('%b %d %H:%M'))
-ax2.set_xlabel('simulation time')
-ax2.set_ylabel('B [nT]')
-plt.ylim(-1300,1300)
-#plt.xlim(datetime.datetime(2022,6,2,17,0),datetime.datetime(2022,6,3,5,0))
-
-
-plt.tight_layout()
-
-
-plt.annotate('(a)',[0.01,0.965],xycoords='figure fraction',weight='bold')
-plt.annotate('(b)',[0.01,0.475],xycoords='figure fraction',weight='bold')
-
-plt.savefig('plots/3dcore_components.png', dpi=300)
-# plt.savefig('results/plots_rate/fig6_3dcore_components.png', dpi=300)
-
+# # 3 Parameter analysis - vary orientation, speed, size
 
 # In[ ]:
 
