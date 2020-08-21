@@ -1,11 +1,8 @@
-heliosat==0.4.1
+heliosat==0.4.0
 3DCORE==1.0.0
-sunpy==1.1.0
-heliopy==0.10.1
-pillow==7.1.1 
-cdflib==0.3.17
+sunpy==2.0.1
+heliopy==0.12.0
+pillow==7.2.0 
+cdflib==0.3.18
 pysftp==0.2.8
-aacgmv2==2.6.0
-openpyxl==3.0.3
-xlrd==1.2.0
-lxml==4.5.1
+jupyterlab==2.2.4

@@ -22,6 +22,9 @@
 # https://doi.org/10.6084/m9.figshare.11973693.v7
 # (which can also be cited by DOI).
 # 
+# 
+# 
+# 
 # ---
 # 
 # **MIT LICENSE**
@@ -49,7 +52,7 @@
 # 
 # 
 
-# In[1]:
+# In[139]:
 
 
 from scipy import stats
@@ -68,6 +71,7 @@ import time
 import pickle
 import seaborn as sns
 import os
+import copy
 import urllib
 import json
 import warnings
@@ -108,7 +112,7 @@ plt.rcParams["figure.figsize"] = (15,8)
 
 # # **1) Settings and load data**
 
-# In[2]:
+# In[140]:
 
 
 plt.close('all')
@@ -239,7 +243,7 @@ stbi=np.where(ic.sc_insitu == 'STEREO-B')[:][0]
 ulyi=np.where(ic.sc_insitu == 'ULYSSES')[:][0]   
 
 
-# In[3]:
+# In[141]:
 
 
 ic
@@ -247,7 +251,7 @@ ic
 
 # ## Define Functions
 
-# In[4]:
+# In[288]:
 
 
 
@@ -326,8 +330,8 @@ def plot_circle(ax,dist,**kwargs):
 
 def plot_satellite(ax,satpos1,**kwargs):
 
-    xc=satpos1[0]*np.cos(np.radians(satpos1[2]))
-    yc=satpos1[0]*np.sin(np.radians(satpos1[2]))
+    xc=satpos1[0]*np.cos(np.radians(satpos1[1]))
+    yc=satpos1[0]*np.sin(np.radians(satpos1[1]))
     zc=0
     #print(xc,yc,zc)
     ax.scatter3D(xc,yc,zc,**kwargs)
@@ -337,7 +341,7 @@ def plot_satellite(ax,satpos1,**kwargs):
 
 # ## Model Settings
 
-# In[132]:
+# In[440]:
 
 
 t_launch = datetime.datetime(2020, 1, 1, 0)
@@ -348,12 +352,12 @@ iparams_arr = np.array([[
     0,    # l_2 (latitude)
     0,      # o (inclination, orientation)
     0.24,   # d_1au (frontal width at 1AU)
-    3,   # delta (cross-section aspect ratio)
+    4,   # delta (cross-section aspect ratio)
     5,      # r_0 (initialization distance in solar radii)
-    600,    # v_0 (initial velocty in)
-    -5,      # tau (magnetic field twist)
-    1,      # b_s (magnetic field scaling parameter)
-    12,     # b_1au (magnetic field strength at 1au)
+    500,    # v_0 (initial velocty in)
+    -1.5,      # tau (magnetic field twist)
+    1.0,      # b_s (magnetic field scaling parameter)
+    15,     # b_1au (magnetic field strength at 1au)
     1.5,    # Gamma (solar wind drag coefficient)
     400,    # v_sw (solar wind speed)
     0       # sigma (measurement noise)
@@ -363,9 +367,13 @@ model_obj = py3dcore.models.ThinTorusGH3DCOREModel(t_launch, runs=1, use_gpu=Fal
 model_obj.update_iparams(iparams_arr, seed=42)
 
 
+
+
 #measurement times 
 tm0 =  t_launch + datetime.timedelta(days=1)
 tm1 =  t_launch + datetime.timedelta(days=3.5)
+tm2 =  t_launch + datetime.timedelta(days=5.0)
+
 
 
 #colors for 3dplots
@@ -388,26 +396,25 @@ lonstep=5
 lonend=90
 
 lonend=lonend+lonstep
-satpos=np.zeros(len(np.arange(lonstart,lonend,lonstep)),dtype=[('r',float),('lat', float),('lon', float)])
+satpos=np.zeros(len(np.arange(lonstart,lonend,lonstep)),dtype=[('r',float),('lon', float),('lat', float)])
 #convert to recarray
 satpos = satpos.view(np.recarray)  
 
 ##### set position
 satpos.r=1.0
-satpos.lat=0.0
 satpos.lon=np.arange(lonstart,lonend,lonstep)
-                
+satpos.lat=0.0
+
 print(satpos.r, satpos.lon)    
 
-
 #another satpos definition for a semi circle at 0.5 AU
-satpos2=satpos
+satpos2=copy.deepcopy(satpos)
 satpos2.r=0.5
 
 
 # ## Figure 1 model setup Nr.1 for illustration
 
-# In[134]:
+# In[441]:
 
 
 #use either 
@@ -424,18 +431,16 @@ sns.set_context("talk")
 sns.set_style("ticks",{'grid.linestyle': '--'})
 fsize=15
 
-fig=plt.figure(1,figsize=(12,9),dpi=100)
-
+fig=plt.figure(1,figsize=(12,9),dpi=70)
 ax = fig.add_subplot(111, projection='3d')
 
 plot_configure(ax, view_azim=-50, view_elev=40, view_radius=0.6)
 #in other planes
-#plot_configure(ax, view_azim=0, view_elev=90, view_radius=0.6)
+#plot_configure(ax, view_azim=0, view_elev=90, view_radius=0.7)
 #plot_configure(ax, view_azim=0, view_elev=0, view_radius=0.6)
 
 
 ########## 3dcore plots
-
 plot_3dcore(ax, model_obj, tm0, color=c1)
 plot_3dcore_field(ax, model_obj, color=c1, steps=1500, step_size=0.001, lw=1.1, ls="-")
 plot_3dcore_field(ax, model_obj, color=c1, steps=1500, step_size=0.001, lw=1.1, ls="-" )
@@ -445,16 +450,14 @@ plot_3dcore_field(ax, model_obj, color=c2, steps=500, step_size=0.01, lw=1.1, ls
 
 ############# satellite plots
 #plot_traj(ax, "Earth", tm1, frame="HEEQ", color=c1)
-   
+  
     
 for i in np.arange(0,len(satpos)):
     plot_satellite(ax,satpos[i],color='black',alpha=0.9)    
     plot_satellite(ax,satpos2[i],color='red',alpha=0.9)
 
 
-
 ##########cosmetics
-
 #approximate Sun Earth line
 ax.plot([0,1],[0,0],[0,0],ls='-',color='black',lw=0.3)
 
@@ -466,16 +469,16 @@ plot_circle(ax,1.0)
 
 plt.tight_layout()
 
-plt.savefig('plots/fig1_setup.pdf', dpi=300)
-plt.savefig('plots/fig1_setup.png', dpi=300)
+plt.savefig('plots/fig1_setup.pdf')
+plt.savefig('plots/fig1_setup.png', dpi=100)
 
 
 # ## Figure 2: Measure components for simple case
 
-# In[93]:
+# In[442]:
 
 
-def measure(obj, satpos, t0, t1, frame="HEEQ", bframe="HEEQ", satparams=None):
+def measure(obj, satpos1, t0, t1, frame="HEEQ", bframe="HEEQ", satparams=None):
     
     #print(obj)
     print('input')
@@ -502,67 +505,104 @@ def measure(obj, satpos, t0, t1, frame="HEEQ", bframe="HEEQ", satparams=None):
     
     #generate position from satpos - always constant
     o_s=np.zeros([len(t_s),3])
-    o_s[:,0]=1.2
-    
-    
-    
+    o_s[:,0]=satpos1[0]   #R in AU 
+    o_s[:,1]=np.radians(satpos1[1]) #longitude
+    o_s[:,2]=np.radians(satpos1[2]) #latitude
+
     #print(t_s)
     #print(o_s)
 
-    #if satparams:
-    #    b = heliosat.spice.transform_frame([satparams] * len(t_s), np.array(obj.sim_fields(t_s, o_s))[:, 0, :], frame, bframe)
-    #else:
-    b = heliosat.spice.transform_frame(t_s, np.array(obj.sim_fields(t_s, o_s))[:, 0, :], frame, bframe)
+    if satparams:
+        b = heliosat.spice.transform_frame([satparams] * len(t_s), np.array(obj.sim_fields(t_s, o_s))[:, 0, :], frame, bframe)
+    else:
+        b = heliosat.spice.transform_frame(t_s, np.array(obj.sim_fields(t_s, o_s))[:, 0, :], frame, bframe)
 
     b[b == 0] = np.nan
 
     return t_s, np.sqrt(np.sum(b**2, axis=1)), b, o_s
 
 
+# In[478]:
+
+
+
+t_launch = datetime.datetime(2020, 1, 1, 0)
+
+iparams_arr = np.array([[
+    0,      # time offset
+    0,    # l_1 (logitude) HEEQ
+    0,    # l_2 (latitude)
+    0,      # o (inclination, orientation)
+    0.5,   # d_1au (frontal width at 1AU)
+    5,   # delta (cross-section aspect ratio)
+    5,      # r_0 (initialization distance in solar radii)
+    500,    # v_0 (initial velocty in)
+    -1.0,      # tau (magnetic field twist)
+    1.0,      # b_s (magnetic field scaling parameter)
+    15,     # b_1au (magnetic field strength at 1au)
+    1.5,    # Gamma (solar wind drag coefficient)
+    400,    # v_sw (solar wind speed)
+    0       # sigma (measurement noise)
+]], dtype=np.float32)
+
+model_obj = py3dcore.models.ThinTorusGH3DCOREModel(t_launch, runs=1, use_gpu=False)
+model_obj.update_iparams(iparams_arr, seed=42)
+
+
+
+
+############################### measure magnetic field
 print()
 start=time.time()
 
-t1, btot1, bxyz1, os = measure(model_obj, "Earth", tm1 - datetime.timedelta(days=1), tm1  + datetime.timedelta(days=5))
+#18 is middle
+satposindex=25
+print('current satpos measured is ', satposindex)
 
-print('took ', time.time()-start, '  seconds')
+#t0, btot0, bxyz0, os = measure(model_obj, satpos[6], tm1 - datetime.timedelta(days=3), tm1  + datetime.timedelta(days=20))
+t1, btot1, bxyz1, os1 = measure(model_obj, satpos[satposindex], tm1 - datetime.timedelta(days=3), tm1  + datetime.timedelta(days=15))
+#t2, btot2, bxyz2, os = measure(model_obj, satpos[30], tm1 - datetime.timedelta(days=3), tm1  + datetime.timedelta(days=20))
+print('took ', np.round(time.time()-start,3), '  seconds')
 print()
+#print(t1)
+#print(os1)
 
 
-# In[95]:
-
-
+################################################
 sns.set_context('talk')
 sns.set_style('whitegrid')
 
 fig = plt.figure(figsize=(15, 12),dpi=50)
 
 ax1 = fig.add_subplot(111)
-ax1.set_title('Satellite position *******')
+ax1.set_title('Satellite position R= 1.0 AU, longitude '+str(satpos.lon[satposindex])+' HEEQ ***')
 
 ax1.plot(t1, btot1, color=cbt, label="$|B|$")
 ax1.plot(t1, bxyz1[:, 0], color=cbx, label="$B_R$")
 ax1.plot(t1, bxyz1[:, 1], color=cby, label="$B_T$")
 ax1.plot(t1, bxyz1[:, 2], color=cbz, label="$B_N$")
 
-ax1.legend(loc="lower right", fontsize=16,ncol=4)
-ax1.xaxis.set_major_formatter(matplotlib.dates.DateFormatter('%b %d %H'))
+ax1.legend(loc="lower right", fontsize=20,ncol=4)
+ax1.xaxis.set_major_formatter(matplotlib.dates.DateFormatter('d%d %H:00'))
 ax1.set_ylabel('B [nT]')
 #plt.ylim(-1300,1300)
 #plt.xlim(datetime.datetime(2022,6,1,23,0),datetime.datetime(2022,6,2,4,0))
 
 plt.tight_layout()
 
+#plt.savefig('plots/fig2_measure_1.pdf', dpi=300)
+#plt.savefig('plots/fig2_measure_1.png', dpi=300)
 
-plt.savefig('plots/fig2_measure_1.pdf', dpi=300)
-plt.savefig('plots/fig2_measure_1.png', dpi=300)
 
-
-# # **3) Parameter analysis** - vary orientation, speed, size, flattening
+# ### **3) Parameter analysis** - vary orientation, speed, size, flattening
 # 
 
 # ### what if we vary parameters - do we find any weird signatures?
 # 
 
+# results: delta up, twist down -> same signature
+# back regions -> expansion, FR large, better for back region
+# 
 # 
 
 # 
