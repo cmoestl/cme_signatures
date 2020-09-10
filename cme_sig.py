@@ -26,6 +26,12 @@
 # 
 # 
 # ---
+# TO DO:
+# - use HCI throughout; use orbits for inner spacecraft so they move correctly
+# - 3DCORE field line movies
+# 
+# 
+# ---
 # 
 # **MIT LICENSE**
 # 
@@ -52,7 +58,7 @@
 # 
 # 
 
-# In[139]:
+# In[1]:
 
 
 from scipy import stats
@@ -112,7 +118,7 @@ plt.rcParams["figure.figsize"] = (15,8)
 
 # # **1) Settings and load data**
 
-# In[140]:
+# In[2]:
 
 
 plt.close('all')
@@ -243,7 +249,7 @@ stbi=np.where(ic.sc_insitu == 'STEREO-B')[:][0]
 ulyi=np.where(ic.sc_insitu == 'ULYSSES')[:][0]   
 
 
-# In[141]:
+# In[3]:
 
 
 ic
@@ -251,7 +257,7 @@ ic
 
 # ## Define Functions
 
-# In[288]:
+# In[4]:
 
 
 
@@ -341,7 +347,7 @@ def plot_satellite(ax,satpos1,**kwargs):
 
 # ## Model Settings
 
-# In[440]:
+# In[17]:
 
 
 t_launch = datetime.datetime(2020, 1, 1, 0)
@@ -414,7 +420,7 @@ satpos2.r=0.5
 
 # ## Figure 1 model setup Nr.1 for illustration
 
-# In[441]:
+# In[18]:
 
 
 #use either 
@@ -442,11 +448,11 @@ plot_configure(ax, view_azim=-50, view_elev=40, view_radius=0.6)
 
 ########## 3dcore plots
 plot_3dcore(ax, model_obj, tm0, color=c1)
-plot_3dcore_field(ax, model_obj, color=c1, steps=1500, step_size=0.001, lw=1.1, ls="-")
-plot_3dcore_field(ax, model_obj, color=c1, steps=1500, step_size=0.001, lw=1.1, ls="-" )
+#plot_3dcore_field(ax, model_obj, color=c1, steps=1500, step_size=0.001, lw=1.1, ls="-")
+#plot_3dcore_field(ax, model_obj, color=c1, steps=1500, step_size=0.001, lw=1.1, ls="-" )
 
 plot_3dcore(ax, model_obj, tm1, color=c2)
-plot_3dcore_field(ax, model_obj, color=c2, steps=500, step_size=0.01, lw=1.1, ls="-")
+#plot_3dcore_field(ax, model_obj, color=c2, steps=500, step_size=0.01, lw=1.1, ls="-")
 
 ############# satellite plots
 #plot_traj(ax, "Earth", tm1, frame="HEEQ", color=c1)
@@ -475,7 +481,7 @@ plt.savefig('plots/fig1_setup.png', dpi=100)
 
 # ## Figure 2: Measure components for simple case
 
-# In[442]:
+# In[19]:
 
 
 def measure(obj, satpos1, t0, t1, frame="HEEQ", bframe="HEEQ", satparams=None):
@@ -522,7 +528,7 @@ def measure(obj, satpos1, t0, t1, frame="HEEQ", bframe="HEEQ", satparams=None):
     return t_s, np.sqrt(np.sum(b**2, axis=1)), b, o_s
 
 
-# In[478]:
+# In[21]:
 
 
 
@@ -533,7 +539,7 @@ iparams_arr = np.array([[
     0,    # l_1 (logitude) HEEQ
     0,    # l_2 (latitude)
     0,      # o (inclination, orientation)
-    0.5,   # d_1au (frontal width at 1AU)
+    0.2,   # d_1au (frontal width at 1AU)
     5,   # delta (cross-section aspect ratio)
     5,      # r_0 (initialization distance in solar radii)
     500,    # v_0 (initial velocty in)
@@ -556,7 +562,7 @@ print()
 start=time.time()
 
 #18 is middle
-satposindex=25
+satposindex=20
 print('current satpos measured is ', satposindex)
 
 #t0, btot0, bxyz0, os = measure(model_obj, satpos[6], tm1 - datetime.timedelta(days=3), tm1  + datetime.timedelta(days=20))
