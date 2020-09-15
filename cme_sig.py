@@ -7,13 +7,13 @@
 # 
 # https://github.com/cmoestl/cme_signatures
 # 
-# for paper Möstl et al. 2020 ApJ (in prep.)
+# for paper Möstl et al. 2021 ApJ (in prep.)
 # 
-# Author: C. Moestl, IWF Graz, Austria; twitter @chrisoutofspace; https://github.com/cmoestl
+# Authors: C. Möstl, A. J. Weiss IWF Graz, Austria; twitter @chrisoutofspace; https://github.com/cmoestl
 # 
-# **work in progress, last update July 2020**
+# **work in progress, last update September 2020**
 # 
-# For installation of a conda environment to run this code and how to download the data into a directory specified in config.py, see instructions in README.md of the heliocats github repo. Conda dependencies are listed under environment.yml, and pip in requirements.txt. Plots are saved in plots/ as png and pdf. 
+# To install a conda environment, dependencies are listed under environment.yml, and pip in requirements.txt. Plots are saved in plots/ as png and pdf. 
 # 
 # **Data sources**
 # 
@@ -23,12 +23,15 @@
 # (which can also be cited by DOI).
 # 
 # 
+# **Packages not on pip**
+# 
+# - 3DCORE install from https://github.com/ajefweiss/py3DCORE (clone, then pip install .)
+# 
 # 
 # 
 # ---
 # TO DO:
 # - use HCI throughout; use orbits for inner spacecraft so they move correctly
-# - 3DCORE field line movies
 # 
 # 
 # ---
@@ -58,19 +61,24 @@
 # 
 # 
 
-# In[1]:
+# In[3]:
 
 
-from scipy import stats
-import scipy.io
-from matplotlib import cm
-import sys
 import matplotlib
+from matplotlib import cm
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+from mpl_toolkits.mplot3d import Axes3D
+from matplotlib import rc
+
+import scipy.io
+from scipy import stats
+
+
+import sys
+
 import numpy as np
 from datetime import timedelta
-import astropy.constants as const
 from sunpy.time import parse_time
 import sunpy.time
 import time
@@ -82,21 +90,23 @@ import urllib
 import json
 import warnings
 import importlib
-#import heliopy.spice as spice
-#import heliopy.data.spice as spicedata
-import astropy
+import heliopy.spice as spice
+import heliopy.data.spice as spicedata
 
-#!pip install 3DCORE if not already in the environment
+import astropy
+import astropy.constants as const
+
+
+
+#o
+
 import py3dcore
 import heliosat
-from mpl_toolkits.mplot3d import Axes3D
-from matplotlib import rc
 
 
 #where the 6 in situ data files are located is read from input.py
 #as data_path=....
 from config import data_path
-#reload again while debugging
 
 #Convert this notebook to a script with jupyter nbconvert --to script cme_rate.ipynb
 os.system('jupyter nbconvert --to script cme_sig.ipynb')    
@@ -118,7 +128,7 @@ plt.rcParams["figure.figsize"] = (15,8)
 
 # # **1) Settings and load data**
 
-# In[2]:
+# In[4]:
 
 
 plt.close('all')
@@ -249,7 +259,7 @@ stbi=np.where(ic.sc_insitu == 'STEREO-B')[:][0]
 ulyi=np.where(ic.sc_insitu == 'ULYSSES')[:][0]   
 
 
-# In[3]:
+# In[5]:
 
 
 ic
@@ -257,7 +267,7 @@ ic
 
 # ## Define Functions
 
-# In[4]:
+# In[80]:
 
 
 
@@ -285,13 +295,15 @@ def plot_3dcore(ax, obj, t_snap, **kwargs):
     wf_model = model_obj.visualize_wireframe(index=0)
     ax.plot_wireframe(*wf_model.T, **kwargs)
 
-def plot_3dcore_field(ax, obj, steps=500, step_size=0.005, **kwargs):
-    q0 = kwargs.get("q0", np.array([1, .1, np.pi/2], dtype=np.float32)).astype(np.float32)
+    
+def plot_3dcore_field(ax, obj, step_size=0.005, q0=[1, .1, np.pi/2],**kwargs):
 
-    fl = obj.visualize_fieldline(q0, steps=steps, step_size=step_size)
-
+    #initial point is q0
+    q0i =np.array(q0, dtype=np.float32).astype(np.float32)    
+    fl = model_obj.visualize_fieldline_dpsi(q0i, dpsi=2*np.pi-0.01, step_size=step_size)
     ax.plot(*fl.T, **kwargs)
-
+    
+    
 def plot_traj(ax, sat, t_snap, frame="HEEQ", traj_pos=True, traj_major=4, traj_minor=None, **kwargs):
     kwargs["alpha"] = kwargs.pop("alpha", 1)
     kwargs["color"] = kwargs.pop("color", "k")
@@ -347,7 +359,7 @@ def plot_satellite(ax,satpos1,**kwargs):
 
 # ## Model Settings
 
-# In[17]:
+# In[8]:
 
 
 t_launch = datetime.datetime(2020, 1, 1, 0)
@@ -420,7 +432,7 @@ satpos2.r=0.5
 
 # ## Figure 1 model setup Nr.1 for illustration
 
-# In[18]:
+# In[87]:
 
 
 #use either 
@@ -448,11 +460,10 @@ plot_configure(ax, view_azim=-50, view_elev=40, view_radius=0.6)
 
 ########## 3dcore plots
 plot_3dcore(ax, model_obj, tm0, color=c1)
-#plot_3dcore_field(ax, model_obj, color=c1, steps=1500, step_size=0.001, lw=1.1, ls="-")
-#plot_3dcore_field(ax, model_obj, color=c1, steps=1500, step_size=0.001, lw=1.1, ls="-" )
+plot_3dcore_field(ax, model_obj, color=c1, step_size=0.005, lw=1.1, ls="-",q0=np.array([1, .1, np.pi/2]))
 
 plot_3dcore(ax, model_obj, tm1, color=c2)
-#plot_3dcore_field(ax, model_obj, color=c2, steps=500, step_size=0.01, lw=1.1, ls="-")
+plot_3dcore_field(ax, model_obj, color=c2, step_size=0.005, lw=1.1, ls="-")
 
 ############# satellite plots
 #plot_traj(ax, "Earth", tm1, frame="HEEQ", color=c1)
@@ -481,7 +492,7 @@ plt.savefig('plots/fig1_setup.png', dpi=100)
 
 # ## Figure 2: Measure components for simple case
 
-# In[19]:
+# In[10]:
 
 
 def measure(obj, satpos1, t0, t1, frame="HEEQ", bframe="HEEQ", satparams=None):
@@ -528,7 +539,7 @@ def measure(obj, satpos1, t0, t1, frame="HEEQ", bframe="HEEQ", satparams=None):
     return t_s, np.sqrt(np.sum(b**2, axis=1)), b, o_s
 
 
-# In[21]:
+# In[8]:
 
 
 
